@@ -1,0 +1,1542 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DulceControl · Sistema Financiero</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+<!-- ===== FIREBASE SDK ===== -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<script>
+/* ============================================================
+   ⚙️  CONFIGURACIÓN DE FIREBASE
+   Reemplaza estos valores con los de tu proyecto en Firebase Console
+   → https://console.firebase.google.com
+   → Tu proyecto → Configuración → Aplicaciones web → SDK
+   ============================================================ */
+const firebaseConfig = {
+  apiKey:            "AIzaSyDHUb5mPdwdsPCuNH94SJduvnPzkeGoeOA",
+  authDomain:        "dulcecontrol-6aa24.firebaseapp.com",
+  projectId:         "dulcecontrol-6aa24",
+  storageBucket:     "dulcecontrol-6aa24.firebasestorage.app",
+  messagingSenderId: "505929301134",
+  appId:             "1:505929301134:web:445f060dc44d184f4d1ddf"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db   = firebase.firestore();
+let currentUser = null;
+</script>
+
+<style>
+:root {
+  --bg: #0a0a0b;--bg2: #111114;--bg3: #18181d;--bg4: #1f1f26;
+  --border: #2a2a35;--border2: #35353f;
+  --green: #00e676;--green2: #00c853;--green-dim: rgba(0,230,118,0.12);--green-glow: rgba(0,230,118,0.25);
+  --yellow: #ffd740;--yellow-dim: rgba(255,215,64,0.12);
+  --red: #ff5252;--red-dim: rgba(255,82,82,0.12);
+  --blue: #40c4ff;--blue-dim: rgba(64,196,255,0.12);
+  --text: #e8e8f0;--text2: #9999aa;--text3: #55556a;
+  --mono: 'Space Mono', monospace;--sans: 'Syne', sans-serif;
+  --radius: 12px;--radius2: 8px;--transition: 0.2s ease;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px;scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;overflow-x:hidden}
+button{cursor:pointer;border:none;outline:none;font-family:var(--sans)}
+input,select,textarea{font-family:var(--sans);outline:none}
+a{text-decoration:none;color:inherit}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* === LOADING OVERLAY === */
+#loading-overlay{
+  position:fixed;inset:0;background:var(--bg);z-index:2000;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+}
+#loading-overlay.hidden{display:none}
+.loading-logo{font-family:var(--sans);font-size:2rem;font-weight:800;letter-spacing:-1px;
+  background:linear-gradient(135deg,var(--green),var(--yellow));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.loading-spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite}
+.loading-msg{font-size:.8rem;color:var(--text3)}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* === LOGIN SCREEN === */
+#login-screen{
+  position:fixed;inset:0;background:var(--bg);z-index:1000;
+  display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:24px;
+}
+#login-screen.hidden{display:none}
+.login-logo{
+  font-family:var(--sans);font-size:2.4rem;font-weight:800;letter-spacing:-1px;
+  background:linear-gradient(135deg,var(--green),var(--yellow));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.login-subtitle{color:var(--text2);font-size:.85rem;letter-spacing:3px;text-transform:uppercase;margin-top:-16px}
+.login-box{
+  background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);
+  padding:32px;width:100%;max-width:360px;display:flex;flex-direction:column;gap:16px;
+}
+.login-box h2{font-size:1.1rem;font-weight:700;color:var(--text)}
+.login-field{display:flex;flex-direction:column;gap:6px}
+.login-field label{font-size:.75rem;color:var(--text2);text-transform:uppercase;letter-spacing:1px}
+.login-field input{
+  background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius2);
+  padding:10px 14px;color:var(--text);font-size:.9rem;transition:border-color var(--transition);
+}
+.login-field input:focus{border-color:var(--green)}
+.login-error{font-size:.78rem;color:var(--red);background:var(--red-dim);border:1px solid rgba(255,82,82,.25);border-radius:6px;padding:8px 12px;display:none}
+.login-error.show{display:block}
+.btn-login{
+  background:var(--green);color:#000;font-weight:700;font-size:.95rem;
+  padding:12px;border-radius:var(--radius2);transition:all var(--transition);margin-top:4px;
+}
+.btn-login:hover{background:var(--green2);transform:translateY(-1px)}
+.btn-register{
+  background:transparent;color:var(--text2);font-weight:600;font-size:.85rem;
+  padding:10px;border-radius:var(--radius2);border:1px solid var(--border);
+  transition:all var(--transition);
+}
+.btn-register:hover{border-color:var(--green);color:var(--green)}
+.login-hint{font-size:.75rem;color:var(--text3);text-align:center}
+.login-divider{display:flex;align-items:center;gap:10px;font-size:.72rem;color:var(--text3)}
+.login-divider::before,.login-divider::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* === APP SHELL === */
+#app{display:none;min-height:100vh}
+#app.visible{display:flex}
+
+/* SIDEBAR */
+.sidebar{
+  width:220px;min-height:100vh;background:var(--bg2);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0;
+  z-index:100;transition:transform var(--transition);
+}
+.sidebar-logo{
+  padding:20px 20px 16px;border-bottom:1px solid var(--border);
+  font-size:1.2rem;font-weight:800;
+  background:linear-gradient(135deg,var(--green),var(--yellow));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.sidebar-logo span{display:block;font-size:.65rem;font-weight:400;color:var(--text3);-webkit-text-fill-color:var(--text3);margin-top:2px;letter-spacing:2px;text-transform:uppercase}
+.sidebar-nav{flex:1;padding:12px 8px;display:flex;flex-direction:column;gap:2px;overflow-y:auto}
+.nav-item{
+  display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius2);
+  font-size:.85rem;font-weight:600;color:var(--text2);cursor:pointer;
+  transition:all var(--transition);position:relative;
+}
+.nav-item:hover{background:var(--bg3);color:var(--text)}
+.nav-item.active{background:var(--green-dim);color:var(--green)}
+.nav-item.active::before{content:'';position:absolute;left:0;top:20%;bottom:20%;width:2px;background:var(--green);border-radius:1px}
+.nav-item .icon{font-size:1.1rem;width:20px;text-align:center;flex-shrink:0}
+.nav-section{font-size:.65rem;color:var(--text3);text-transform:uppercase;letter-spacing:2px;padding:12px 12px 4px;margin-top:4px}
+.sidebar-footer{padding:12px 8px;border-top:1px solid var(--border)}
+.sidebar-user{
+  display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:var(--radius2);
+  font-size:.8rem;color:var(--text2);
+}
+.user-avatar{
+  width:28px;height:28px;border-radius:50%;background:var(--green-dim);
+  border:1px solid var(--green);display:flex;align-items:center;justify-content:center;
+  font-size:.75rem;color:var(--green);font-weight:700;flex-shrink:0;
+}
+.sync-indicator{font-size:.65rem;color:var(--text3);display:flex;align-items:center;gap:4px;padding:4px 12px}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+.sync-dot.saving{background:var(--yellow);animation:pulse .8s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* MAIN */
+.main{margin-left:220px;flex:1;min-height:100vh;padding:24px}
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;
+  background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 20px;
+}
+.topbar-title{font-size:1.1rem;font-weight:800;color:var(--text)}
+.topbar-right{display:flex;align-items:center;gap:12px}
+.topbar-date{font-size:.75rem;color:var(--text2);font-family:var(--mono)}
+.btn-menu{display:none;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:1rem}
+.alerts-bar{margin-bottom:20px;display:flex;flex-direction:column;gap:6px}
+.alert-item{
+  display:flex;align-items:center;gap:10px;padding:10px 16px;border-radius:var(--radius2);
+  font-size:.82rem;font-weight:600;animation:slideIn .3s ease;
+}
+.alert-item.warning{background:var(--yellow-dim);border:1px solid rgba(255,215,64,.25);color:var(--yellow)}
+.alert-item.success{background:var(--green-dim);border:1px solid rgba(0,230,118,.25);color:var(--green)}
+.alert-item.danger{background:var(--red-dim);border:1px solid rgba(255,82,82,.25);color:var(--red)}
+.alert-item.info{background:var(--blue-dim);border:1px solid rgba(64,196,255,.25);color:var(--blue)}
+@keyframes slideIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+
+/* CARDS */
+.cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:24px}
+.metric-card{
+  background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);
+  padding:16px;transition:border-color var(--transition),transform var(--transition);cursor:default;
+}
+.metric-card:hover{border-color:var(--border2);transform:translateY(-2px)}
+.metric-card.green{border-color:rgba(0,230,118,.3)}
+.metric-card.yellow{border-color:rgba(255,215,64,.3)}
+.metric-card.red{border-color:rgba(255,82,82,.3)}
+.metric-card.blue{border-color:rgba(64,196,255,.3)}
+.card-label{font-size:.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px}
+.card-value{font-size:1.6rem;font-weight:800;color:var(--text);font-family:var(--mono);line-height:1}
+.card-value.green{color:var(--green)}.card-value.yellow{color:var(--yellow)}.card-value.red{color:var(--red)}.card-value.blue{color:var(--blue)}
+.card-sub{font-size:.72rem;color:var(--text3);margin-top:6px}
+
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.section-title{font-size:1rem;font-weight:800;color:var(--text)}
+.section-sub{font-size:.75rem;color:var(--text2)}
+
+/* TABLES */
+.table-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px}
+.table-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border)}
+.table-header-title{font-size:.85rem;font-weight:700;color:var(--text)}
+table{width:100%;border-collapse:collapse}
+thead tr{background:var(--bg3)}
+thead th{padding:10px 14px;text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--text3);white-space:nowrap}
+tbody tr{border-bottom:1px solid var(--border);transition:background var(--transition)}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:var(--bg3)}
+tbody td{padding:10px 14px;font-size:.82rem;color:var(--text2)}
+tbody td.highlight{color:var(--text);font-weight:600}
+tbody td.green{color:var(--green)}tbody td.red{color:var(--red)}tbody td.yellow{color:var(--yellow)}tbody td.blue{color:var(--blue)}
+.empty-state{padding:32px;text-align:center;color:var(--text3);font-size:.85rem}
+.empty-state .empty-icon{font-size:2rem;margin-bottom:8px}
+
+/* FORMS */
+.form-section{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:20px}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}
+.form-group{display:flex;flex-direction:column;gap:6px}
+.form-group.full{grid-column:1/-1}
+.form-group label{font-size:.68rem;color:var(--text2);text-transform:uppercase;letter-spacing:1px}
+.form-group input,.form-group select,.form-group textarea{
+  background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius2);
+  padding:9px 12px;color:var(--text);font-size:.85rem;width:100%;transition:border-color var(--transition);
+}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--green)}
+.form-group select option{background:var(--bg3)}
+.form-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:var(--radius2);font-size:.82rem;font-weight:700;transition:all var(--transition)}
+.btn-primary{background:var(--green);color:#000}.btn-primary:hover{background:var(--green2);transform:translateY(-1px)}
+.btn-secondary{background:var(--bg3);color:var(--text);border:1px solid var(--border)}.btn-secondary:hover{background:var(--bg4);border-color:var(--border2)}
+.btn-danger{background:var(--red-dim);color:var(--red);border:1px solid rgba(255,82,82,.3)}.btn-danger:hover{background:rgba(255,82,82,.2)}
+.btn-yellow{background:var(--yellow-dim);color:var(--yellow);border:1px solid rgba(255,215,64,.3)}.btn-yellow:hover{background:rgba(255,215,64,.2)}
+.btn-sm{padding:5px 10px;font-size:.75rem}.btn-icon{padding:6px 8px;font-size:1rem}
+
+/* SEARCH/FILTER */
+.search-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.search-input-wrap{display:flex;align-items:center;gap:8px;flex:1;min-width:180px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius2);padding:8px 12px}
+.search-input-wrap input{background:transparent;border:none;color:var(--text);flex:1;font-size:.85rem}
+.search-input-wrap .search-icon{color:var(--text3);font-size:.9rem}
+.filter-select{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius2);padding:8px 12px;color:var(--text2);font-size:.82rem}
+
+/* CHARTS */
+.chart-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-bottom:20px}
+.chart-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.chart-title{font-size:.82rem;font-weight:700;color:var(--text);margin-bottom:14px}
+.chart-canvas-wrap{position:relative;height:200px}
+
+/* FINANCE BOXES */
+.finance-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
+.finance-box{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;display:flex;flex-direction:column;gap:8px}
+.finance-box.green{border-color:rgba(0,230,118,.4);background:linear-gradient(135deg,var(--bg2),rgba(0,230,118,.05))}
+.finance-box.yellow{border-color:rgba(255,215,64,.4);background:linear-gradient(135deg,var(--bg2),rgba(255,215,64,.05))}
+.finance-box.blue{border-color:rgba(64,196,255,.4);background:linear-gradient(135deg,var(--bg2),rgba(64,196,255,.05))}
+.finance-box-label{font-size:.7rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--text3)}
+.finance-box-pct{font-size:.75rem;font-weight:700}
+.finance-box.green .finance-box-pct{color:var(--green)}.finance-box.yellow .finance-box-pct{color:var(--yellow)}.finance-box.blue .finance-box-pct{color:var(--blue)}
+.finance-box-value{font-size:2rem;font-weight:800;font-family:var(--mono)}
+.finance-box.green .finance-box-value{color:var(--green)}.finance-box.yellow .finance-box-value{color:var(--yellow)}.finance-box.blue .finance-box-value{color:var(--blue)}
+.finance-box-desc{font-size:.75rem;color:var(--text3)}
+
+/* BADGES / PROGRESS */
+.badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:20px;font-size:.7rem;font-weight:700}
+.badge-green{background:var(--green-dim);color:var(--green)}.badge-yellow{background:var(--yellow-dim);color:var(--yellow)}
+.badge-red{background:var(--red-dim);color:var(--red)}.badge-blue{background:var(--blue-dim);color:var(--blue)}
+.progress-wrap{margin-bottom:12px}
+.progress-label{display:flex;justify-content:space-between;margin-bottom:5px;font-size:.75rem}
+.progress-label span:first-child{color:var(--text2)}.progress-label span:last-child{color:var(--text);font-weight:700;font-family:var(--mono)}
+.progress-track{height:6px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;border-radius:3px;transition:width .6s ease}
+.progress-fill.green{background:var(--green)}.progress-fill.yellow{background:var(--yellow)}.progress-fill.red{background:var(--red)}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;display:none;align-items:center;justify-content:center;padding:16px}
+.modal-overlay.open{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:24px;width:100%;max-width:400px;animation:modalIn .25s ease}
+@keyframes modalIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.modal-title{font-size:1rem;font-weight:700}
+.modal-close{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text2);font-size:1rem}
+
+/* TABS */
+.tabs{display:flex;gap:4px;background:var(--bg3);border-radius:var(--radius2);padding:4px;margin-bottom:20px;flex-wrap:wrap}
+.tab{padding:7px 14px;border-radius:6px;font-size:.8rem;font-weight:700;color:var(--text2);cursor:pointer;transition:all var(--transition)}
+.tab.active{background:var(--bg2);color:var(--green);box-shadow:0 1px 4px rgba(0,0,0,.3)}
+.tab:hover:not(.active){color:var(--text)}
+
+/* PAGES */
+.page{display:none}.page.active{display:block}
+
+/* CONFIG */
+.config-section{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px}
+.config-section h3{font-size:.9rem;font-weight:700;margin-bottom:14px;color:var(--text)}
+.config-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)}
+.config-row:last-child{border-bottom:none}
+.config-row-label{font-size:.85rem;color:var(--text2)}
+.config-row-desc{font-size:.72rem;color:var(--text3);margin-top:2px}
+
+/* RESPONSIVE */
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%)}.sidebar.open{transform:translateX(0)}
+  .main{margin-left:0;padding:14px}.btn-menu{display:flex}
+  .cards-grid{grid-template-columns:repeat(2,1fr)}.finance-grid{grid-template-columns:1fr}
+  .chart-grid{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr 1fr}
+  .sidebar-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99;display:none}
+  .sidebar-overlay.open{display:block}
+}
+@media(max-width:480px){.cards-grid{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr}}
+
+/* MISC */
+.divider{height:1px;background:var(--border);margin:16px 0}
+.text-right{text-align:right}.text-center{text-align:center}
+.flex-between{display:flex;align-items:center;justify-content:space-between}
+.gap-8{gap:8px}.mt-8{margin-top:8px}.mt-16{margin-top:16px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:600px){.two-col{grid-template-columns:1fr}}
+.tag-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.retiro-log{max-height:200px;overflow-y:auto}
+.retiro-item{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:.8rem}
+.retiro-item:last-child{border-bottom:none}
+.numero-grande{font-family:var(--mono);font-weight:800}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     LOADING OVERLAY (mientras Firebase carga datos)
+     ============================================================ -->
+<div id="loading-overlay">
+  <div class="loading-logo">DulceControl</div>
+  <div class="loading-spinner"></div>
+  <div class="loading-msg" id="loading-msg">Conectando con Firebase…</div>
+</div>
+
+<!-- ============================================================
+     LOGIN
+     ============================================================ -->
+<div id="login-screen" class="hidden">
+  <div class="login-logo">DulceControl</div>
+  <div class="login-subtitle">Sistema Financiero · Cloud</div>
+  <div class="login-box">
+    <h2>Iniciar sesión</h2>
+    <div class="login-field">
+      <label>Correo electrónico</label>
+      <input type="email" id="login-email" placeholder="tucorreo@gmail.com" autocomplete="email">
+    </div>
+    <div class="login-field">
+      <label>Contraseña</label>
+      <input type="password" id="login-pass" placeholder="••••••">
+    </div>
+    <div class="login-error" id="login-error"></div>
+    <button class="btn-login" id="btn-login" onclick="doLogin()">Entrar al sistema</button>
+    <div class="login-divider">o</div>
+    <button class="btn-register" onclick="doRegister()">Crear cuenta nueva</button>
+    <p class="login-hint">☁️ Tus datos se guardan en la nube · Úsalo desde cualquier dispositivo</p>
+  </div>
+</div>
+
+<!-- ============================================================
+     SIDEBAR OVERLAY (mobile)
+     ============================================================ -->
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+<!-- ============================================================
+     APP SHELL
+     ============================================================ -->
+<div id="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">DulceControl<span>Gestión · Finanzas · Cloud</span></div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">Principal</div>
+      <div class="nav-item active" onclick="goTo('dashboard')"><span class="icon">📊</span> Dashboard</div>
+      <div class="nav-section">Operaciones</div>
+      <div class="nav-item" onclick="goTo('ventas')"><span class="icon">💰</span> Ventas</div>
+      <div class="nav-item" onclick="goTo('inventario')"><span class="icon">📦</span> Inventario</div>
+      <div class="nav-item" onclick="goTo('compras')"><span class="icon">🛒</span> Compras</div>
+      <div class="nav-section">Finanzas</div>
+      <div class="nav-item" onclick="goTo('finanzas')"><span class="icon">🏦</span> Finanzas</div>
+      <div class="nav-item" onclick="goTo('reportes')"><span class="icon">📋</span> Reportes</div>
+      <div class="nav-item" onclick="goTo('estadisticas')"><span class="icon">📈</span> Estadísticas</div>
+      <div class="nav-section">Sistema</div>
+      <div class="nav-item" onclick="goTo('config')"><span class="icon">⚙️</span> Configuración</div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-avatar" id="sidebar-avatar">A</div>
+        <div>
+          <div id="sidebar-username" style="font-size:.8rem;color:var(--text);font-weight:700">Cargando…</div>
+          <div style="font-size:.7rem;color:var(--text3)" id="sidebar-email">—</div>
+        </div>
+      </div>
+      <div class="sync-indicator"><div class="sync-dot" id="sync-dot"></div><span id="sync-label">Sincronizado</span></div>
+      <div style="margin-top:6px">
+        <button class="btn btn-secondary btn-sm" style="width:100%" onclick="doLogout()">🚪 Cerrar sesión</button>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="btn-menu" onclick="openSidebar()">☰</button>
+        <div class="topbar-title" id="page-title">Dashboard</div>
+      </div>
+      <div class="topbar-right">
+        <div class="topbar-date" id="topbar-date"></div>
+        <button class="btn btn-yellow btn-sm" onclick="openModal('modal-retiro')">💸 Retiro</button>
+      </div>
+    </div>
+
+    <div class="alerts-bar" id="alerts-bar"></div>
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="cards-grid" id="dashboard-cards"></div>
+      <div class="two-col">
+        <div>
+          <div class="section-header"><span class="section-title">📦 Stock por producto</span></div>
+          <div id="stock-bars"></div>
+        </div>
+        <div>
+          <div class="section-header"><span class="section-title">🏆 Top productos hoy</span></div>
+          <div id="top-products-dash"></div>
+        </div>
+      </div>
+      <div class="section-header mt-16"><span class="section-title">📅 Ventas recientes</span></div>
+      <div class="table-wrap"><div id="ventas-recientes-body"></div></div>
+    </div>
+
+    <!-- VENTAS -->
+    <div class="page" id="page-ventas">
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab('ventas','nueva')">➕ Nueva venta</div>
+        <div class="tab" onclick="switchTab('ventas','historial')">📋 Historial</div>
+      </div>
+      <div id="ventas-tab-nueva">
+        <div class="form-section">
+          <div class="section-header"><span class="section-title">Registrar venta</span></div>
+          <div class="form-grid">
+            <div class="form-group"><label>Fecha</label><input type="date" id="v-fecha"></div>
+            <div class="form-group"><label>Producto</label>
+              <select id="v-producto" onchange="fillVentaInfo()"><option value="">Seleccionar...</option></select>
+            </div>
+            <div class="form-group"><label>Cantidad vendida</label><input type="number" id="v-qty" min="1" oninput="calcVenta()"></div>
+            <div class="form-group"><label>Precio venta unitario ($)</label><input type="number" id="v-precio" step="0.01" oninput="calcVenta()"></div>
+            <div class="form-group"><label>Costo unitario ($)</label><input type="number" id="v-costo" step="0.01" oninput="calcVenta()"></div>
+            <div class="form-group"><label>Nota (opcional)</label><input type="text" id="v-nota" placeholder="Ej: venta en recreo"></div>
+          </div>
+          <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius2);padding:14px;margin-top:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+            <div><div class="card-label">Total vendido</div><div class="card-value" id="vc-total">$0.00</div></div>
+            <div><div class="card-label">Costo total</div><div class="card-value red" id="vc-costo">$0.00</div></div>
+            <div><div class="card-label">Ganancia neta</div><div class="card-value green" id="vc-ganancia">$0.00</div></div>
+          </div>
+          <div class="form-row">
+            <button class="btn btn-primary" onclick="guardarVenta()">💾 Guardar venta</button>
+            <button class="btn btn-secondary" onclick="clearVentaForm()">🗑 Limpiar</button>
+          </div>
+        </div>
+      </div>
+      <div id="ventas-tab-historial" style="display:none">
+        <div class="search-bar">
+          <div class="search-input-wrap"><span class="search-icon">🔍</span><input type="text" id="search-ventas" placeholder="Buscar ventas..." oninput="renderVentasHistorial()"></div>
+          <select class="filter-select" id="filter-ventas-prod" onchange="renderVentasHistorial()"><option value="">Todos los productos</option></select>
+          <input type="date" class="filter-select" id="filter-ventas-desde" onchange="renderVentasHistorial()" title="Desde">
+          <input type="date" class="filter-select" id="filter-ventas-hasta" onchange="renderVentasHistorial()" title="Hasta">
+        </div>
+        <div class="table-wrap">
+          <div class="table-header"><span class="table-header-title">Historial de ventas</span><span id="ventas-count" style="font-size:.75rem;color:var(--text3)"></span></div>
+          <div style="overflow-x:auto"><table>
+            <thead><tr><th>Fecha</th><th>Producto</th><th>Cant.</th><th>Precio</th><th>Costo</th><th>Total</th><th>Ganancia</th><th>Nota</th><th></th></tr></thead>
+            <tbody id="ventas-historial-tbody"></tbody>
+          </table></div>
+          <div id="ventas-historial-empty" class="empty-state" style="display:none"><div class="empty-icon">🛒</div>No hay ventas registradas</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- INVENTARIO -->
+    <div class="page" id="page-inventario">
+      <div class="cards-grid" id="inv-cards"></div>
+      <div class="two-col">
+        <div>
+          <div class="section-header"><span class="section-title">📦 Stock actual</span></div>
+          <div class="table-wrap">
+            <div style="overflow-x:auto"><table>
+              <thead><tr><th>Producto</th><th>Stock</th><th>Costo unit.</th><th>Valor total</th><th>Estado</th></tr></thead>
+              <tbody id="inv-stock-tbody"></tbody>
+            </table></div>
+          </div>
+          <div style="margin-top:12px">
+            <div class="section-header"><span class="section-title">➕ Ajuste manual de stock</span></div>
+            <div class="form-section" style="margin:0">
+              <div class="form-grid">
+                <div class="form-group"><label>Producto</label><select id="adj-producto"></select></div>
+                <div class="form-group"><label>Tipo</label><select id="adj-tipo"><option value="add">Agregar</option><option value="sub">Restar</option></select></div>
+                <div class="form-group"><label>Cantidad</label><input type="number" id="adj-qty" min="1"></div>
+              </div>
+              <div class="form-row"><button class="btn btn-primary btn-sm" onclick="ajustarStock()">Aplicar ajuste</button></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="section-header"><span class="section-title">🛠 Gestionar productos</span></div>
+          <div class="form-section" style="margin:0">
+            <div class="form-grid">
+              <div class="form-group full"><label>Nombre del producto</label><input type="text" id="prod-nombre" placeholder="Ej: UFO limón"></div>
+              <div class="form-group"><label>Costo unitario ($)</label><input type="number" id="prod-costo" step="0.01"></div>
+              <div class="form-group"><label>Precio venta ($)</label><input type="number" id="prod-precio" step="0.01"></div>
+              <div class="form-group"><label>Stock inicial</label><input type="number" id="prod-stock" min="0"></div>
+              <div class="form-group"><label>Alerta mínima</label><input type="number" id="prod-minimo" min="0" placeholder="10"></div>
+              <div class="form-group"><label>Categoría</label><select id="prod-categoria"><option>Dulces</option><option>Chicles</option><option>Ácidos</option><option>Otro</option></select></div>
+            </div>
+            <div class="form-row">
+              <button class="btn btn-primary btn-sm" onclick="guardarProducto()">💾 Guardar producto</button>
+              <button class="btn btn-secondary btn-sm" onclick="clearProdForm()">Limpiar</button>
+            </div>
+          </div>
+          <div class="mt-16">
+            <div class="section-title" style="margin-bottom:10px">Productos registrados</div>
+            <div id="productos-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COMPRAS -->
+    <div class="page" id="page-compras">
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab('compras','nueva')">➕ Nueva compra</div>
+        <div class="tab" onclick="switchTab('compras','historial')">📋 Historial</div>
+      </div>
+      <div id="compras-tab-nueva">
+        <div class="form-section">
+          <div class="section-header"><span class="section-title">Registrar compra</span></div>
+          <div class="form-grid">
+            <div class="form-group"><label>Fecha</label><input type="date" id="c-fecha"></div>
+            <div class="form-group"><label>Producto</label><select id="c-producto"></select></div>
+            <div class="form-group"><label>Proveedor</label><input type="text" id="c-proveedor" placeholder="Ej: Distribuidora X"></div>
+            <div class="form-group"><label>Cantidad</label><input type="number" id="c-qty" min="1" oninput="calcCompra()"></div>
+            <div class="form-group"><label>Costo unitario ($)</label><input type="number" id="c-costo-unit" step="0.01" oninput="calcCompra()"></div>
+            <div class="form-group"><label>Costo total ($) <span style="color:var(--text3)">(auto)</span></label><input type="number" id="c-costo-total" step="0.01" readonly style="opacity:.6"></div>
+          </div>
+          <div class="form-row">
+            <button class="btn btn-primary" onclick="guardarCompra()">💾 Registrar compra</button>
+            <button class="btn btn-secondary" onclick="clearCompraForm()">Limpiar</button>
+          </div>
+        </div>
+      </div>
+      <div id="compras-tab-historial" style="display:none">
+        <div class="table-wrap">
+          <div class="table-header"><span class="table-header-title">Historial de compras</span></div>
+          <div style="overflow-x:auto"><table>
+            <thead><tr><th>Fecha</th><th>Producto</th><th>Proveedor</th><th>Cantidad</th><th>Costo unit.</th><th>Total</th><th></th></tr></thead>
+            <tbody id="compras-tbody"></tbody>
+          </table></div>
+          <div id="compras-empty" class="empty-state" style="display:none"><div class="empty-icon">🛒</div>No hay compras registradas</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FINANZAS -->
+    <div class="page" id="page-finanzas">
+      <div class="finance-grid" id="finance-boxes"></div>
+      <div class="two-col">
+        <div>
+          <div class="section-header"><span class="section-title">💸 Realizar retiro personal</span></div>
+          <div class="form-section" style="margin:0">
+            <p style="font-size:.8rem;color:var(--text2);margin-bottom:12px">El retiro se descuenta del 20% personal. Queda registrado para control.</p>
+            <div class="form-grid">
+              <div class="form-group"><label>Monto a retirar ($)</label><input type="number" id="fin-retiro-monto" step="0.01" min="0.01"></div>
+              <div class="form-group"><label>Motivo</label><input type="text" id="fin-retiro-motivo" placeholder="Ej: comida, transporte..."></div>
+            </div>
+            <div class="form-row"><button class="btn btn-yellow" onclick="hacerRetiro()">💸 Retirar dinero</button></div>
+          </div>
+          <div class="mt-16 section-title" style="margin-bottom:10px">Historial de retiros</div>
+          <div class="table-wrap">
+            <div style="overflow-x:auto"><table>
+              <thead><tr><th>Fecha</th><th>Monto</th><th>Motivo</th></tr></thead>
+              <tbody id="retiros-tbody"></tbody>
+            </table></div>
+            <div id="retiros-empty" class="empty-state" style="display:none"><div class="empty-icon">💳</div>Sin retiros registrados</div>
+          </div>
+        </div>
+        <div>
+          <div class="section-header"><span class="section-title">📊 Distribución de ganancias</span></div>
+          <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px">
+            <div class="chart-canvas-wrap" style="height:180px"><canvas id="chart-distribucion"></canvas></div>
+            <div style="margin-top:12px">
+              <div class="progress-wrap">
+                <div class="progress-label"><span>🔄 Reinversión (50%)</span><span id="prog-reinversion">$0.00</span></div>
+                <div class="progress-track"><div class="progress-fill green" id="bar-reinversion" style="width:0%"></div></div>
+              </div>
+              <div class="progress-wrap">
+                <div class="progress-label"><span>🏦 Ahorro (30%)</span><span id="prog-ahorro">$0.00</span></div>
+                <div class="progress-track"><div class="progress-fill yellow" id="bar-ahorro" style="width:0%"></div></div>
+              </div>
+              <div class="progress-wrap">
+                <div class="progress-label"><span>👤 Personal (20%)</span><span id="prog-personal">$0.00</span></div>
+                <div class="progress-track"><div class="progress-fill" id="bar-personal" style="width:0%;background:var(--blue)"></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="mt-16">
+            <div class="section-header"><span class="section-title">🏁 Capital inicial</span></div>
+            <div class="form-section" style="margin:0">
+              <div class="form-group"><label>Establecer capital inicial ($)</label><input type="number" id="fin-capital-inicial" step="0.01" placeholder="0.00"></div>
+              <div class="form-row"><button class="btn btn-primary btn-sm" onclick="setCapitalInicial()">Guardar capital inicial</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- REPORTES -->
+    <div class="page" id="page-reportes">
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab('reportes','diario')">📅 Diario</div>
+        <div class="tab" onclick="switchTab('reportes','semanal')">📆 Semanal</div>
+        <div class="tab" onclick="switchTab('reportes','mensual')">📊 Mensual</div>
+      </div>
+      <div id="reportes-tab-diario"><div id="reporte-diario-content"></div></div>
+      <div id="reportes-tab-semanal" style="display:none"><div id="reporte-semanal-content"></div></div>
+      <div id="reportes-tab-mensual" style="display:none"><div id="reporte-mensual-content"></div></div>
+      <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-secondary" onclick="exportarJSON()">📥 Exportar JSON (backup)</button>
+        <button class="btn btn-secondary" onclick="exportarCSV()">📊 Exportar CSV</button>
+        <label class="btn btn-secondary" style="cursor:pointer">📤 Importar JSON<input type="file" accept=".json" style="display:none" onchange="importarJSON(this)"></label>
+      </div>
+    </div>
+
+    <!-- ESTADÍSTICAS -->
+    <div class="page" id="page-estadisticas">
+      <div class="chart-grid">
+        <div class="chart-card"><div class="chart-title">📅 Ventas por día (últimos 7 días)</div><div class="chart-canvas-wrap"><canvas id="chart-ventas-dia"></canvas></div></div>
+        <div class="chart-card"><div class="chart-title">💰 Ganancias semanales</div><div class="chart-canvas-wrap"><canvas id="chart-ganancias-semana"></canvas></div></div>
+        <div class="chart-card"><div class="chart-title">🏆 Productos más vendidos</div><div class="chart-canvas-wrap"><canvas id="chart-productos-vendidos"></canvas></div></div>
+        <div class="chart-card"><div class="chart-title">📈 Crecimiento del capital</div><div class="chart-canvas-wrap"><canvas id="chart-capital"></canvas></div></div>
+        <div class="chart-card"><div class="chart-title">💎 Rentabilidad por producto</div><div class="chart-canvas-wrap"><canvas id="chart-rentabilidad"></canvas></div></div>
+        <div class="chart-card"><div class="chart-title">📦 Comparación de ventas (mes)</div><div class="chart-canvas-wrap"><canvas id="chart-comparacion"></canvas></div></div>
+      </div>
+    </div>
+
+    <!-- CONFIGURACIÓN -->
+    <div class="page" id="page-config">
+      <div class="config-section">
+        <h3>🔐 Seguridad</h3>
+        <div style="font-size:.8rem;color:var(--text2);margin-bottom:12px">
+          Cuenta: <span id="cfg-email-display" style="color:var(--green);font-family:var(--mono)">—</span>
+        </div>
+        <div class="form-grid">
+          <div class="form-group"><label>Nombre visible</label><input type="text" id="cfg-user" placeholder="Tu nombre"></div>
+          <div class="form-group"><label>Nueva contraseña</label><input type="password" id="cfg-pass" placeholder="Dejar vacío para no cambiar"></div>
+        </div>
+        <div class="form-row">
+          <button class="btn btn-primary btn-sm" onclick="guardarCredenciales()">💾 Guardar</button>
+        </div>
+      </div>
+      <div class="config-section">
+        <h3>🏪 Mi negocio</h3>
+        <div class="form-grid">
+          <div class="form-group"><label>Nombre del negocio</label><input type="text" id="cfg-negocio" placeholder="DulceControl"></div>
+          <div class="form-group"><label>Moneda</label>
+            <select id="cfg-moneda">
+              <option value="$">$ (Dólar)</option>
+              <option value="S/.">S/. (Sol)</option>
+              <option value="COP">COP</option>
+              <option value="MXN">MXN</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row"><button class="btn btn-primary btn-sm" onclick="guardarConfigNegocio()">💾 Guardar</button></div>
+      </div>
+      <div class="config-section">
+        <h3>⚠️ Zona peligrosa</h3>
+        <div class="config-row">
+          <div><div class="config-row-label">Resetear datos operativos</div><div class="config-row-desc">Borra ventas, compras, finanzas. Los productos se mantienen.</div></div>
+          <button class="btn btn-danger btn-sm" onclick="resetDatos()">🗑 Reset datos</button>
+        </div>
+        <div class="config-row">
+          <div><div class="config-row-label">Borrar todo el sistema</div><div class="config-row-desc">Elimina absolutamente todo. Acción irreversible.</div></div>
+          <button class="btn btn-danger btn-sm" onclick="resetTotal()">💣 Reset total</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- MODAL RETIRO -->
+<div class="modal-overlay" id="modal-retiro">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">💸 Retiro personal rápido</div>
+      <button class="modal-close" onclick="closeModal('modal-retiro')">✕</button>
+    </div>
+    <div class="form-group"><label>Monto ($)</label><input type="number" id="modal-retiro-monto" step="0.01" min="0.01" placeholder="0.00"></div>
+    <div class="form-group mt-8"><label>Motivo</label><input type="text" id="modal-retiro-motivo" placeholder="Ej: comida, transporte..."></div>
+    <div style="margin-top:10px;font-size:.78rem;color:var(--text3)">Disponible personal: <span id="modal-retiro-disp" class="numero-grande" style="color:var(--yellow)">$0.00</span></div>
+    <div class="form-row mt-8">
+      <button class="btn btn-yellow" onclick="hacerRetiroModal()">Confirmar retiro</button>
+      <button class="btn btn-secondary" onclick="closeModal('modal-retiro')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   STATE (en memoria — la fuente de verdad es Firestore)
+   ============================================================ */
+let state = {
+  productos: [
+    {id:'ufo-limon',    nombre:'UFO limón',       costo:2.50, precio:5.00, stock:20, minimo:10, categoria:'Dulces'},
+    {id:'ufo-maracuya', nombre:'UFO maracuyá',     costo:2.50, precio:5.00, stock:20, minimo:10, categoria:'Dulces'},
+    {id:'hiperacido',   nombre:'Hiperácidos largos',costo:1.50,precio:3.00, stock:30, minimo:15, categoria:'Ácidos'},
+    {id:'chicle',       nombre:'Chicles $0.10',    costo:0.05, precio:0.10, stock:100,minimo:30, categoria:'Chicles'},
+  ],
+  ventas: [],
+  compras: [],
+  retiros: [],
+  capitalInicial: 0,
+  config: {usuario:'Usuario', negocio:'DulceControl', moneda:'$'},
+  currentPage: 'dashboard',
+  chartInstances: {}
+};
+
+/* ============================================================
+   FIREBASE: GUARDAR (fire-and-forget)
+   ============================================================ */
+let _saveTimer = null;
+function save(){
+  if(!currentUser) return;
+  // indicador visual
+  setSyncStatus('saving');
+  // debounce: espera 800ms de inactividad antes de escribir
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(()=>{
+    const payload = {
+      productos:      state.productos,
+      ventas:         state.ventas,
+      compras:        state.compras,
+      retiros:        state.retiros,
+      capitalInicial: state.capitalInicial,
+      config:         state.config,
+      updatedAt:      firebase.firestore.FieldValue.serverTimestamp()
+    };
+    db.collection('usuarios').doc(currentUser.uid).set(payload)
+      .then(()=> setSyncStatus('ok'))
+      .catch(err=>{ setSyncStatus('error'); console.error('Error al guardar:', err); });
+  }, 800);
+}
+
+function setSyncStatus(s){
+  const dot = document.getElementById('sync-dot');
+  const lbl = document.getElementById('sync-label');
+  if(!dot||!lbl) return;
+  dot.className = 'sync-dot' + (s==='saving'?' saving':'');
+  lbl.textContent = s==='saving'?'Guardando…': s==='error'?'Error al guardar':'Sincronizado';
+}
+
+/* ============================================================
+   FIREBASE: CARGAR DATOS
+   ============================================================ */
+async function loadFromFirebase(uid){
+  try{
+    const doc = await db.collection('usuarios').doc(uid).get();
+    if(doc.exists){
+      const d = doc.data();
+      if(Array.isArray(d.productos))    state.productos = d.productos;
+      if(Array.isArray(d.ventas))       state.ventas    = d.ventas;
+      if(Array.isArray(d.compras))      state.compras   = d.compras;
+      if(Array.isArray(d.retiros))      state.retiros   = d.retiros;
+      if(d.capitalInicial !== undefined) state.capitalInicial = d.capitalInicial;
+      if(d.config) state.config = {...state.config, ...d.config};
+    }
+  } catch(err){
+    console.error('Error al cargar datos:', err);
+  }
+}
+
+/* ============================================================
+   FIREBASE: AUTH — LOGIN / REGISTRO / LOGOUT
+   ============================================================ */
+function showLoginError(msg){
+  const el = document.getElementById('login-error');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+function clearLoginError(){
+  document.getElementById('login-error').classList.remove('show');
+}
+function setLoginLoading(on){
+  const btn = document.getElementById('btn-login');
+  btn.textContent = on ? 'Entrando…' : 'Entrar al sistema';
+  btn.disabled = on;
+}
+
+async function doLogin(){
+  clearLoginError();
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-pass').value;
+  if(!email || !pass){ showLoginError('Completa el email y la contraseña.'); return; }
+  setLoginLoading(true);
+  try{
+    await auth.signInWithEmailAndPassword(email, pass);
+    // onAuthStateChanged toma el control desde aquí
+  } catch(err){
+    setLoginLoading(false);
+    if(err.code==='auth/user-not-found' || err.code==='auth/invalid-credential' || err.code==='auth/invalid-email'){
+      showLoginError('No existe cuenta con ese email. Usa "Crear cuenta nueva".');
+    } else if(err.code==='auth/wrong-password'){
+      showLoginError('Contraseña incorrecta. Vuelve a intentarlo.');
+    } else if(err.code==='auth/too-many-requests'){
+      showLoginError('Demasiados intentos. Espera unos minutos.');
+    } else {
+      showLoginError(err.message);
+    }
+  }
+}
+
+async function doRegister(){
+  clearLoginError();
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-pass').value;
+  if(!email || !pass){ showLoginError('Completa el email y la contraseña.'); return; }
+  if(pass.length < 6){ showLoginError('La contraseña debe tener al menos 6 caracteres.'); return; }
+  setLoginLoading(true);
+  try{
+    await auth.createUserWithEmailAndPassword(email, pass);
+    // onAuthStateChanged crea el documento con los datos por defecto
+  } catch(err){
+    setLoginLoading(false);
+    if(err.code==='auth/email-already-in-use'){
+      showLoginError('Ese email ya tiene cuenta. Inicia sesión.');
+    } else if(err.code==='auth/invalid-email'){
+      showLoginError('El email no es válido.');
+    } else if(err.code==='auth/weak-password'){
+      showLoginError('Contraseña muy débil (mínimo 6 caracteres).');
+    } else {
+      showLoginError(err.message);
+    }
+  }
+}
+
+function doLogout(){
+  if(confirm('¿Cerrar sesión?')) auth.signOut();
+}
+
+/* ============================================================
+   FIREBASE: onAuthStateChanged — orquestador principal
+   ============================================================ */
+auth.onAuthStateChanged(async user => {
+  if(user){
+    currentUser = user;
+
+    // Mostrar overlay de carga
+    document.getElementById('loading-msg').textContent = 'Cargando tus datos…';
+    document.getElementById('loading-overlay').classList.remove('hidden');
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('app').style.display = 'none';
+
+    // Cargar datos desde Firestore
+    await loadFromFirebase(user.uid);
+
+    // Mostrar app
+    document.getElementById('loading-overlay').classList.add('hidden');
+    document.getElementById('app').style.display = 'flex';
+    document.getElementById('app').classList.add('visible');
+
+    // Actualizar sidebar
+    const nombre = state.config.usuario || user.email.split('@')[0];
+    document.getElementById('sidebar-username').textContent = nombre;
+    document.getElementById('sidebar-avatar').textContent   = nombre[0].toUpperCase();
+    document.getElementById('sidebar-email').textContent    = user.email;
+
+    setLoginLoading(false);
+    initApp();
+
+  } else {
+    currentUser = null;
+    state.chartInstances = {};
+    document.getElementById('loading-overlay').classList.add('hidden');
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('app').classList.remove('visible');
+    document.getElementById('login-screen').classList.remove('hidden');
+  }
+});
+
+// Si no hay sesión en 3s, mostrar login de todas formas
+setTimeout(()=>{
+  if(!currentUser){
+    document.getElementById('loading-overlay').classList.add('hidden');
+    document.getElementById('login-screen').classList.remove('hidden');
+  }
+}, 3000);
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const fmt  = n => `${state.config.moneda}${Number(n||0).toFixed(2)}`;
+const fmtN = n => Number(n||0).toFixed(2);
+const today = () => new Date().toISOString().slice(0,10);
+
+/* ============================================================
+   INIT APP
+   ============================================================ */
+function initApp(){
+  updateDate();
+  setInterval(updateDate, 60000);
+  populateProductSelects();
+  setDefaultDates();
+  goTo('dashboard');
+}
+
+function updateDate(){
+  $('topbar-date').textContent = new Date().toLocaleDateString('es-ES',{weekday:'short',day:'2-digit',month:'short'});
+}
+
+/* ============================================================
+   NAVEGACIÓN
+   ============================================================ */
+function goTo(page){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  $('page-'+page).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>{
+    if(n.textContent.toLowerCase().includes(getPageLabel(page).toLowerCase())) n.classList.add('active');
+  });
+  const titles={dashboard:'Dashboard',ventas:'Registro de Ventas',inventario:'Inventario',compras:'Compras',finanzas:'Finanzas',reportes:'Reportes',estadisticas:'Estadísticas',config:'Configuración'};
+  $('page-title').textContent=titles[page]||page;
+  state.currentPage=page;
+  renderPage(page);
+  closeSidebar();
+}
+
+function getPageLabel(p){return{dashboard:'Dashboard',ventas:'Ventas',inventario:'Inventario',compras:'Compras',finanzas:'Finanzas',reportes:'Reportes',estadisticas:'Estadísticas',config:'Configuración'}[p]||p}
+
+function renderPage(page){
+  if(page==='dashboard')    renderDashboard();
+  else if(page==='ventas')      renderVentas();
+  else if(page==='inventario')  renderInventario();
+  else if(page==='compras')     renderCompras();
+  else if(page==='finanzas')    renderFinanzas();
+  else if(page==='reportes')    renderReportes();
+  else if(page==='estadisticas')renderEstadisticas();
+  else if(page==='config')      renderConfig();
+  renderAlerts();
+}
+
+function openSidebar(){ $('sidebar').classList.add('open'); $('sidebar-overlay').classList.add('open'); }
+function closeSidebar(){ $('sidebar').classList.remove('open'); $('sidebar-overlay').classList.remove('open'); }
+
+function switchTab(page,tab){
+  const tabs=document.querySelectorAll(`#page-${page} .tab`);
+  const sections={
+    ventas:{nueva:'ventas-tab-nueva',historial:'ventas-tab-historial'},
+    compras:{nueva:'compras-tab-nueva',historial:'compras-tab-historial'},
+    reportes:{diario:'reportes-tab-diario',semanal:'reportes-tab-semanal',mensual:'reportes-tab-mensual'}
+  };
+  if(sections[page]){
+    Object.values(sections[page]).forEach(id=>{const el=$(id);if(el)el.style.display='none';});
+    const show=sections[page][tab];
+    if($(show))$(show).style.display='block';
+  }
+  tabs.forEach(t=>{
+    const map={nueva:'➕',historial:'📋',diario:'📅',semanal:'📆',mensual:'📊'};
+    if(t.textContent.startsWith(map[tab]||''))t.classList.add('active');
+    else t.classList.remove('active');
+  });
+  if(tab==='historial'){if(page==='ventas')renderVentasHistorial();if(page==='compras')renderComprasHistorial();}
+  if(tab==='semanal') renderReporteSemanal();
+  if(tab==='mensual') renderReporteMensual();
+  if(tab==='diario')  renderReporteDiario();
+}
+
+/* ============================================================
+   FINANCIEROS (computed)
+   ============================================================ */
+function calcFinancieros(){
+  const totalVentas   = state.ventas.reduce((s,v)=>s+v.totalVendido,0);
+  const totalCostos   = state.ventas.reduce((s,v)=>s+v.costoTotal,0);
+  const gananciaBruta = totalVentas - totalCostos;
+  const totalCompras  = state.compras.reduce((s,c)=>s+c.costoTotal,0);
+  const totalRetiros  = state.retiros.reduce((s,r)=>s+r.monto,0);
+
+  const reinversion  = gananciaBruta * 0.50;
+  const ahorro       = gananciaBruta * 0.30;
+  const personal     = gananciaBruta * 0.20;
+  const personalDisp = personal - totalRetiros;
+  const capitalActual= state.capitalInicial + gananciaBruta;
+
+  const hoy = today();
+  const ventasHoy      = state.ventas.filter(v=>v.fecha===hoy);
+  const ventasHoyTotal = ventasHoy.reduce((s,v)=>s+v.totalVendido,0);
+  const gananciasHoy   = ventasHoy.reduce((s,v)=>s+v.ganancia,0);
+
+  const semana=[];
+  for(let i=6;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);semana.push(d.toISOString().slice(0,10));}
+  const gananciaSemana = state.ventas.filter(v=>semana.includes(v.fecha)).reduce((s,v)=>s+v.ganancia,0);
+
+  const stockTotal = state.productos.reduce((s,p)=>s+p.stock,0);
+  const cantHoy    = ventasHoy.reduce((s,v)=>s+v.cantidad,0);
+
+  const prodVentas={};
+  state.ventas.forEach(v=>{prodVentas[v.productoNombre]=(prodVentas[v.productoNombre]||0)+v.cantidad;});
+  const prodTop=Object.entries(prodVentas).sort((a,b)=>b[1]-a[1])[0];
+
+  const prodGanancias={};
+  state.ventas.forEach(v=>{prodGanancias[v.productoNombre]=(prodGanancias[v.productoNombre]||0)+v.ganancia;});
+  const prodRentable=Object.entries(prodGanancias).sort((a,b)=>b[1]-a[1])[0];
+
+  return{totalVentas,totalCostos,gananciaBruta,totalCompras,totalRetiros,reinversion,ahorro,personal,personalDisp,capitalActual,ventasHoyTotal,gananciasHoy,gananciaSemana,stockTotal,cantHoy,prodTop:prodTop?prodTop[0]:'—',prodRentable:prodRentable?prodRentable[0]:'—'};
+}
+
+/* ============================================================
+   ALERTS
+   ============================================================ */
+function renderAlerts(){
+  const f=calcFinancieros(); const alerts=[];
+  state.productos.forEach(p=>{
+    if(p.stock===0) alerts.push({tipo:'danger',msg:`🚨 Sin stock: "${p.nombre}" — necesitas reponer urgente`});
+    else if(p.stock<=p.minimo) alerts.push({tipo:'warning',msg:`⚠️ Stock bajo en "${p.nombre}" — solo quedan ${p.stock} unidades`});
+  });
+  if(f.personal>0&&f.personalDisp<0) alerts.push({tipo:'danger',msg:`🔴 Excediste tu límite de retiros personales en ${fmt(-f.personalDisp)}`});
+  else if(f.personal>0&&f.totalRetiros>0&&f.totalRetiros>f.personal*0.75) alerts.push({tipo:'warning',msg:`⚠️ Estás retirando demasiado dinero personal (${Math.round(f.totalRetiros/f.personal*100)}% usado)`});
+  if(state.capitalInicial>0&&f.capitalActual>state.capitalInicial){
+    const pct=((f.capitalActual-state.capitalInicial)/state.capitalInicial*100).toFixed(0);
+    alerts.push({tipo:'success',msg:`🚀 ¡Tu capital creció un ${pct}% desde el inicio!`});
+  }
+  if(f.gananciasHoy>5) alerts.push({tipo:'success',msg:`✅ Ganancia de hoy: ${fmt(f.gananciasHoy)} — ¡buen día!`});
+  $('alerts-bar').innerHTML=alerts.slice(0,4).map(a=>`<div class="alert-item ${a.tipo}">${a.msg}</div>`).join('');
+}
+
+/* ============================================================
+   DASHBOARD
+   ============================================================ */
+function renderDashboard(){
+  const f=calcFinancieros();
+  const cards=[
+    {label:'Capital actual',value:fmt(f.capitalActual),cls:'green'},
+    {label:'Ventas del día',value:fmt(f.ventasHoyTotal),cls:'blue'},
+    {label:'Ganancia del día',value:fmt(f.gananciasHoy),cls:'green'},
+    {label:'Ganancia semanal',value:fmt(f.gananciaSemana),cls:'green'},
+    {label:'Reinversión acum.',value:fmt(f.reinversion),cls:'yellow'},
+    {label:'Ahorro acumulado',value:fmt(f.ahorro),cls:'yellow'},
+    {label:'Retiros personales',value:fmt(f.totalRetiros),cls:''},
+    {label:'Personal disponible',value:fmt(f.personalDisp),cls:f.personalDisp<0?'red':''},
+    {label:'Producto ⭐ ventas',value:f.prodTop,cls:'yellow',small:true},
+    {label:'Producto 💎 rentable',value:f.prodRentable,cls:'green',small:true},
+    {label:'Stock total',value:f.stockTotal+' u.',cls:'blue'},
+    {label:'Vendido hoy',value:f.cantHoy+' u.',cls:''},
+  ];
+  $('dashboard-cards').innerHTML=cards.map(c=>`<div class="metric-card ${c.cls}"><div class="card-label">${c.label}</div><div class="card-value ${c.cls} ${c.small?'':'numero-grande'}" style="${c.small?'font-size:1rem;font-family:var(--sans)':''}">${c.value}</div></div>`).join('');
+
+  $('stock-bars').innerHTML=state.productos.map(p=>{
+    const pct=Math.round(p.stock/Math.max(p.stock+p.minimo,1)*100);
+    const cls=p.stock===0?'red':p.stock<=p.minimo?'yellow':'green';
+    return`<div class="progress-wrap"><div class="progress-label"><span>${p.nombre}</span><span>${p.stock} u.</span></div><div class="progress-track"><div class="progress-fill ${cls}" style="width:${Math.min(pct,100)}%"></div></div></div>`;
+  }).join('');
+
+  const hoy=today(); const ph={};
+  state.ventas.filter(v=>v.fecha===hoy).forEach(v=>{ph[v.productoNombre]=(ph[v.productoNombre]||0)+v.cantidad;});
+  const sorted=Object.entries(ph).sort((a,b)=>b[1]-a[1]);
+  $('top-products-dash').innerHTML=sorted.length?sorted.slice(0,5).map((e,i)=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:.82rem"><span style="color:var(--text2)">${['🥇','🥈','🥉','4','5'][i]} ${e[0]}</span><span class="badge badge-green">${e[1]} u.</span></div>`).join(''):'<div style="color:var(--text3);font-size:.82rem;padding:12px 0">Sin ventas hoy</div>';
+
+  const recientes=[...state.ventas].sort((a,b)=>new Date(b.fecha)-new Date(a.fecha)).slice(0,5);
+  $('ventas-recientes-body').innerHTML=recientes.length?`<div style="overflow-x:auto"><table><thead><tr><th>Fecha</th><th>Producto</th><th>Cant.</th><th>Total</th><th>Ganancia</th></tr></thead><tbody>${recientes.map(v=>`<tr><td>${v.fecha}</td><td class="highlight">${v.productoNombre}</td><td>${v.cantidad}</td><td class="blue">${fmt(v.totalVendido)}</td><td class="green">${fmt(v.ganancia)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-state"><div class="empty-icon">📊</div>No hay ventas registradas aún</div>';
+}
+
+/* ============================================================
+   VENTAS
+   ============================================================ */
+function setDefaultDates(){
+  const t=today();
+  ['v-fecha','c-fecha'].forEach(id=>{const el=$(id);if(el)el.value=t;});
+}
+
+function populateProductSelects(){
+  const selects=['v-producto','c-producto','adj-producto','filter-ventas-prod'];
+  selects.forEach(id=>{
+    const sel=$(id); if(!sel) return;
+    const val=sel.value;
+    const isFilter=id.includes('filter');
+    sel.innerHTML=(isFilter?'<option value="">Todos</option>':'<option value="">Seleccionar...</option>')+
+      state.productos.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('');
+    sel.value=val;
+  });
+}
+
+function fillVentaInfo(){
+  const id=$('v-producto').value;
+  const prod=state.productos.find(p=>p.id===id);
+  if(prod){$('v-precio').value=prod.precio.toFixed(2);$('v-costo').value=prod.costo.toFixed(2);calcVenta();}
+}
+
+function calcVenta(){
+  const qty=parseFloat($('v-qty').value)||0,precio=parseFloat($('v-precio').value)||0,costo=parseFloat($('v-costo').value)||0;
+  const total=qty*precio,costoT=qty*costo,ganancia=total-costoT;
+  $('vc-total').textContent=fmt(total);$('vc-costo').textContent=fmt(costoT);
+  $('vc-ganancia').textContent=fmt(ganancia);
+  $('vc-ganancia').className='card-value numero-grande '+(ganancia>=0?'green':'red');
+}
+
+function guardarVenta(){
+  const prodId=$('v-producto').value;
+  const prod=state.productos.find(p=>p.id===prodId);
+  const qty=parseInt($('v-qty').value)||0,precio=parseFloat($('v-precio').value)||0,costo=parseFloat($('v-costo').value)||0;
+  if(!prod||qty<=0||precio<=0){alert('Completa todos los campos correctamente.');return;}
+  if(prod.stock<qty){if(!confirm(`Stock insuficiente (${prod.stock} disponibles). ¿Registrar de todas formas?`))return;}
+  const totalVendido=qty*precio,costoTotal=qty*costo,ganancia=totalVendido-costoTotal;
+  state.ventas.push({id:Date.now(),fecha:$('v-fecha').value,productoId:prodId,productoNombre:prod.nombre,cantidad:qty,precioUnit:precio,costoUnit:costo,totalVendido,costoTotal,ganancia,nota:$('v-nota').value});
+  prod.stock=Math.max(0,prod.stock-qty);
+  save(); populateProductSelects(); clearVentaForm(); showToast('✅ Venta registrada — Ganancia: '+fmt(ganancia)); renderAlerts();
+}
+
+function clearVentaForm(){
+  ['v-qty','v-precio','v-costo','v-nota'].forEach(id=>{const el=$(id);if(el)el.value='';});
+  $('v-producto').value='';
+  $('vc-total').textContent=fmt(0);$('vc-costo').textContent=fmt(0);$('vc-ganancia').textContent=fmt(0);
+}
+
+function renderVentas(){populateProductSelects();renderVentasHistorial();}
+
+function renderVentasHistorial(){
+  const search=($('search-ventas')||{value:''}).value.toLowerCase();
+  const filtroProd=($('filter-ventas-prod')||{value:''}).value;
+  const filtroDesde=($('filter-ventas-desde')||{value:''}).value;
+  const filtroHasta=($('filter-ventas-hasta')||{value:''}).value;
+  let ventas=[...state.ventas].sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
+  if(search) ventas=ventas.filter(v=>v.productoNombre.toLowerCase().includes(search)||(v.nota||'').toLowerCase().includes(search));
+  if(filtroProd) ventas=ventas.filter(v=>v.productoId===filtroProd);
+  if(filtroDesde) ventas=ventas.filter(v=>v.fecha>=filtroDesde);
+  if(filtroHasta) ventas=ventas.filter(v=>v.fecha<=filtroHasta);
+  const tbody=$('ventas-historial-tbody'),empty=$('ventas-historial-empty');
+  if(!tbody)return;
+  $('ventas-count').textContent=ventas.length+' registros';
+  if(!ventas.length){tbody.innerHTML='';empty.style.display='block';return;}
+  empty.style.display='none';
+  tbody.innerHTML=ventas.map(v=>`<tr><td>${v.fecha}</td><td class="highlight">${v.productoNombre}</td><td>${v.cantidad}</td><td>${fmt(v.precioUnit)}</td><td>${fmt(v.costoUnit)}</td><td class="blue">${fmt(v.totalVendido)}</td><td class="${v.ganancia>=0?'green':'red'}">${fmt(v.ganancia)}</td><td style="color:var(--text3);font-size:.75rem">${v.nota||'—'}</td><td><button class="btn btn-danger btn-sm btn-icon" onclick="eliminarVenta(${v.id})">🗑</button></td></tr>`).join('');
+}
+
+function eliminarVenta(id){
+  if(!confirm('¿Eliminar esta venta?'))return;
+  const v=state.ventas.find(v=>v.id===id);
+  if(v){const prod=state.productos.find(p=>p.id===v.productoId);if(prod)prod.stock+=v.cantidad;}
+  state.ventas=state.ventas.filter(v=>v.id!==id);
+  save();renderVentasHistorial();renderAlerts();showToast('🗑 Venta eliminada');
+}
+
+/* ============================================================
+   INVENTARIO
+   ============================================================ */
+function renderInventario(){
+  const stockTotal=state.productos.reduce((s,p)=>s+p.stock,0);
+  const valorTotal=state.productos.reduce((s,p)=>s+p.stock*p.costo,0);
+  const bajos=state.productos.filter(p=>p.stock<=p.minimo).length;
+  $('inv-cards').innerHTML=`<div class="metric-card blue"><div class="card-label">Productos</div><div class="card-value blue numero-grande">${state.productos.length}</div></div><div class="metric-card green"><div class="card-label">Stock total</div><div class="card-value green numero-grande">${stockTotal} u.</div></div><div class="metric-card yellow"><div class="card-label">Inventario valorizado</div><div class="card-value yellow numero-grande">${fmt(valorTotal)}</div></div><div class="metric-card ${bajos>0?'red':''}"><div class="card-label">Stock bajo</div><div class="card-value ${bajos>0?'red':''} numero-grande">${bajos}</div></div>`;
+  $('inv-stock-tbody').innerHTML=state.productos.map(p=>{
+    const estado=p.stock===0?'<span class="badge badge-red">Sin stock</span>':p.stock<=p.minimo?'<span class="badge badge-yellow">Bajo</span>':'<span class="badge badge-green">OK</span>';
+    return`<tr><td class="highlight">${p.nombre}</td><td class="numero-grande">${p.stock}</td><td>${fmt(p.costo)}</td><td class="green">${fmt(p.stock*p.costo)}</td><td>${estado}</td></tr>`;
+  }).join('');
+  const adj=$('adj-producto');
+  if(adj)adj.innerHTML=state.productos.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('');
+  $('productos-list').innerHTML=state.productos.map(p=>`<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius2);padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-weight:700;color:var(--text);font-size:.85rem">${p.nombre}</div><div style="font-size:.72rem;color:var(--text3);margin-top:2px">Costo: ${fmt(p.costo)} · Venta: ${fmt(p.precio)} · Stock: ${p.stock} · Alerta: ${p.minimo}</div><div class="tag-row"><span class="badge badge-blue">${p.categoria}</span></div></div><div style="display:flex;gap:6px"><button class="btn btn-secondary btn-sm" onclick="editarProducto('${p.id}')">✏️</button><button class="btn btn-danger btn-sm" onclick="eliminarProducto('${p.id}')">🗑</button></div></div>`).join('')||'<div class="empty-state"><div class="empty-icon">📦</div>No hay productos</div>';
+}
+
+function guardarProducto(){
+  const nombre=$('prod-nombre').value.trim();
+  const costo=parseFloat($('prod-costo').value)||0,precio=parseFloat($('prod-precio').value)||0;
+  const stock=parseInt($('prod-stock').value)||0,minimo=parseInt($('prod-minimo').value)||10;
+  const categoria=$('prod-categoria').value;
+  if(!nombre||costo<=0||precio<=0){alert('Completa todos los campos.');return;}
+  const editId=$('prod-nombre').dataset.editId;
+  if(editId){
+    const p=state.productos.find(p=>p.id===editId);
+    if(p){p.nombre=nombre;p.costo=costo;p.precio=precio;p.stock=stock;p.minimo=minimo;p.categoria=categoria;}
+    delete $('prod-nombre').dataset.editId;
+  }else{
+    state.productos.push({id:'prod_'+Date.now(),nombre,costo,precio,stock,minimo,categoria});
+  }
+  save();populateProductSelects();renderInventario();clearProdForm();showToast('✅ Producto guardado');
+}
+
+function clearProdForm(){['prod-nombre','prod-costo','prod-precio','prod-stock','prod-minimo'].forEach(id=>{const el=$(id);if(el){el.value='';delete el.dataset.editId;}});}
+
+function editarProducto(id){
+  const p=state.productos.find(p=>p.id===id);if(!p)return;
+  $('prod-nombre').value=p.nombre;$('prod-nombre').dataset.editId=id;
+  $('prod-costo').value=p.costo;$('prod-precio').value=p.precio;
+  $('prod-stock').value=p.stock;$('prod-minimo').value=p.minimo;
+  $('prod-categoria').value=p.categoria;
+  $('prod-nombre').scrollIntoView({behavior:'smooth'});$('prod-nombre').focus();
+}
+
+function eliminarProducto(id){
+  if(!confirm('¿Eliminar este producto? Las ventas históricas se mantendrán.'))return;
+  state.productos=state.productos.filter(p=>p.id!==id);
+  save();populateProductSelects();renderInventario();showToast('🗑 Producto eliminado');
+}
+
+function ajustarStock(){
+  const id=$('adj-producto').value,tipo=$('adj-tipo').value,qty=parseInt($('adj-qty').value)||0;
+  if(!id||qty<=0){alert('Selecciona producto y cantidad válida.');return;}
+  const prod=state.productos.find(p=>p.id===id);
+  if(tipo==='add')prod.stock+=qty; else prod.stock=Math.max(0,prod.stock-qty);
+  $('adj-qty').value='';save();renderInventario();showToast('✅ Stock actualizado');
+}
+
+/* ============================================================
+   COMPRAS
+   ============================================================ */
+function calcCompra(){
+  const qty=parseFloat($('c-qty').value)||0,cu=parseFloat($('c-costo-unit').value)||0;
+  $('c-costo-total').value=(qty*cu).toFixed(2);
+}
+
+function guardarCompra(){
+  const prodId=$('c-producto').value,prod=state.productos.find(p=>p.id===prodId);
+  const qty=parseInt($('c-qty').value)||0,costoUnit=parseFloat($('c-costo-unit').value)||0;
+  if(!prod||qty<=0||costoUnit<=0){alert('Completa todos los campos.');return;}
+  const costoTotal=qty*costoUnit;
+  state.compras.push({id:Date.now(),fecha:$('c-fecha').value,productoId:prodId,productoNombre:prod.nombre,proveedor:$('c-proveedor').value||'—',cantidad:qty,costoUnit,costoTotal});
+  prod.stock+=qty;
+  // Solo actualiza el costo si el usuario lo confirma (distinto al actual)
+  if(costoUnit!==prod.costo){
+    if(confirm(`El costo unitario cambió de ${fmt(prod.costo)} a ${fmt(costoUnit)}. ¿Actualizar el costo del producto?`)){
+      prod.costo=costoUnit;
+    }
+  }
+  save();populateProductSelects();clearCompraForm();showToast('✅ Compra registrada — Stock actualizado');
+}
+
+function clearCompraForm(){['c-qty','c-costo-unit','c-costo-total','c-proveedor'].forEach(id=>{const el=$(id);if(el)el.value='';});$('c-producto').value='';}
+
+function eliminarCompra(id){
+  if(!confirm('¿Eliminar esta compra? El stock NO se revertirá automáticamente.'))return;
+  state.compras=state.compras.filter(c=>c.id!==id);
+  save();renderComprasHistorial();showToast('🗑 Compra eliminada');
+}
+
+function renderCompras(){populateProductSelects();renderComprasHistorial();}
+
+function renderComprasHistorial(){
+  const compras=[...state.compras].sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
+  const tbody=$('compras-tbody'),empty=$('compras-empty');
+  if(!compras.length){tbody.innerHTML='';empty.style.display='block';return;}
+  empty.style.display='none';
+  tbody.innerHTML=compras.map(c=>`<tr><td>${c.fecha}</td><td class="highlight">${c.productoNombre}</td><td>${c.proveedor}</td><td>${c.cantidad}</td><td>${fmt(c.costoUnit)}</td><td class="yellow">${fmt(c.costoTotal)}</td><td><button class="btn btn-danger btn-sm btn-icon" onclick="eliminarCompra(${c.id})">🗑</button></td></tr>`).join('');
+}
+
+/* ============================================================
+   FINANZAS
+   ============================================================ */
+function renderFinanzas(){
+  const f=calcFinancieros();
+  $('finance-boxes').innerHTML=`
+    <div class="finance-box green"><div class="finance-box-label">Reinversión</div><div class="finance-box-pct">50% de ganancias</div><div class="finance-box-value">${fmt(f.reinversion)}</div><div class="finance-box-desc">Para comprar más producto</div></div>
+    <div class="finance-box yellow"><div class="finance-box-label">Ahorro</div><div class="finance-box-pct">30% de ganancias</div><div class="finance-box-value">${fmt(f.ahorro)}</div><div class="finance-box-desc">Para antes de la universidad</div></div>
+    <div class="finance-box blue"><div class="finance-box-label">Personal disponible</div><div class="finance-box-pct">20% − retiros = ${fmt(f.personalDisp)}</div><div class="finance-box-value" style="${f.personalDisp<0?'color:var(--red)':''}">${fmt(f.personalDisp)}</div><div class="finance-box-desc">Lo que puedes gastar</div></div>`;
+  const total=f.gananciaBruta||1;
+  $('prog-reinversion').textContent=fmt(f.reinversion);$('prog-ahorro').textContent=fmt(f.ahorro);$('prog-personal').textContent=fmt(f.personal);
+  $('bar-reinversion').style.width=Math.min(100,f.reinversion/total*100)+'%';
+  $('bar-ahorro').style.width=Math.min(100,f.ahorro/total*100)+'%';
+  $('bar-personal').style.width=Math.min(100,f.personal/total*100)+'%';
+  $('fin-capital-inicial').value=state.capitalInicial||'';
+  renderRetirosHistorial();
+  renderChartDistribucion(f);
+}
+
+function renderRetirosHistorial(){
+  const tbody=$('retiros-tbody'),empty=$('retiros-empty');
+  const retiros=[...state.retiros].sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
+  if(!retiros.length){tbody.innerHTML='';empty.style.display='block';return;}
+  empty.style.display='none';
+  tbody.innerHTML=retiros.map(r=>`<tr><td>${r.fecha}</td><td class="yellow">${fmt(r.monto)}</td><td>${r.motivo||'—'}</td></tr>`).join('');
+}
+
+function setCapitalInicial(){
+  const v=parseFloat($('fin-capital-inicial').value)||0;
+  state.capitalInicial=v;save();showToast('✅ Capital inicial guardado: '+fmt(v));renderFinanzas();
+}
+
+function hacerRetiro(){
+  hacerRetiroLogic(parseFloat($('fin-retiro-monto').value)||0,$('fin-retiro-motivo').value);
+  $('fin-retiro-monto').value='';$('fin-retiro-motivo').value='';
+}
+
+function hacerRetiroModal(){
+  hacerRetiroLogic(parseFloat($('modal-retiro-monto').value)||0,$('modal-retiro-motivo').value);
+  $('modal-retiro-monto').value='';$('modal-retiro-motivo').value='';
+  closeModal('modal-retiro');
+}
+
+function hacerRetiroLogic(monto,motivo){
+  if(monto<=0){alert('Ingresa un monto válido.');return;}
+  const f=calcFinancieros();
+  if(monto>f.personalDisp&&!confirm(`Solo tienes ${fmt(f.personalDisp)} disponibles. ¿Confirmar de todas formas?`))return;
+  state.retiros.push({id:Date.now(),fecha:today(),monto,motivo:motivo||'Sin especificar'});
+  save();renderAlerts();
+  if(state.currentPage==='finanzas')renderFinanzas();
+  showToast('💸 Retiro registrado: '+fmt(monto));
+}
+
+function openModal(id){$(id).classList.add('open');const f=calcFinancieros();$('modal-retiro-disp').textContent=fmt(f.personalDisp);}
+function closeModal(id){$(id).classList.remove('open');}
+$('modal-retiro').addEventListener('click',e=>{if(e.target.id==='modal-retiro')closeModal('modal-retiro');});
+
+/* ============================================================
+   REPORTES
+   ============================================================ */
+function renderReportes(){renderReporteDiario();}
+
+function renderReporteDiario(){
+  const hoy=today(),ventas=state.ventas.filter(v=>v.fecha===hoy);
+  const totalV=ventas.reduce((s,v)=>s+v.totalVendido,0),totalG=ventas.reduce((s,v)=>s+v.ganancia,0);
+  const prodHoy={};
+  ventas.forEach(v=>{prodHoy[v.productoNombre]=(prodHoy[v.productoNombre]||0)+v.cantidad;});
+  const top=Object.entries(prodHoy).sort((a,b)=>b[1]-a[1]);
+  $('reporte-diario-content').innerHTML=`
+    <div class="cards-grid" style="margin-bottom:16px">
+      <div class="metric-card blue"><div class="card-label">Ventas hoy</div><div class="card-value blue numero-grande">${fmt(totalV)}</div></div>
+      <div class="metric-card green"><div class="card-label">Ganancia hoy</div><div class="card-value green numero-grande">${fmt(totalG)}</div></div>
+      <div class="metric-card"><div class="card-label">Transacciones</div><div class="card-value numero-grande">${ventas.length}</div></div>
+      <div class="metric-card yellow"><div class="card-label">Reinversión hoy</div><div class="card-value yellow numero-grande">${fmt(totalG*0.5)}</div></div>
+    </div>
+    <div class="two-col">
+      <div class="form-section" style="margin:0">
+        <div class="section-title" style="margin-bottom:10px">Ventas del día</div>
+        ${ventas.length?`<table style="width:100%"><thead><tr><th>Producto</th><th>Cant.</th><th>Total</th><th>Ganancia</th></tr></thead><tbody>${ventas.map(v=>`<tr><td>${v.productoNombre}</td><td>${v.cantidad}</td><td class="blue">${fmt(v.totalVendido)}</td><td class="green">${fmt(v.ganancia)}</td></tr>`).join('')}</tbody></table>`:'<div class="empty-state"><div class="empty-icon">📋</div>Sin ventas hoy</div>'}
+      </div>
+      <div class="form-section" style="margin:0">
+        <div class="section-title" style="margin-bottom:10px">Top productos hoy</div>
+        ${top.map((e,i)=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span>${['🥇','🥈','🥉','4.','5.'][i]||''} ${e[0]}</span><span class="badge badge-green">${e[1]} u.</span></div>`).join('')||'<div style="color:var(--text3);font-size:.82rem">Sin datos</div>'}
+      </div>
+    </div>`;
+}
+
+function renderReporteSemanal(){
+  const semana=[];
+  for(let i=6;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);semana.push(d.toISOString().slice(0,10));}
+  let totalV=0,totalG=0,countV=0;
+  const dias=semana.map(fecha=>{
+    const vd=state.ventas.filter(v=>v.fecha===fecha);
+    const tv=vd.reduce((s,v)=>s+v.totalVendido,0),tg=vd.reduce((s,v)=>s+v.ganancia,0);
+    totalV+=tv;totalG+=tg;countV+=vd.length;
+    return{fecha,tv,tg,count:vd.length};
+  });
+  $('reporte-semanal-content').innerHTML=`
+    <div class="cards-grid" style="margin-bottom:16px">
+      <div class="metric-card blue"><div class="card-label">Ventas semana</div><div class="card-value blue numero-grande">${fmt(totalV)}</div></div>
+      <div class="metric-card green"><div class="card-label">Ganancia semana</div><div class="card-value green numero-grande">${fmt(totalG)}</div></div>
+      <div class="metric-card"><div class="card-label">Transacciones</div><div class="card-value numero-grande">${countV}</div></div>
+      <div class="metric-card yellow"><div class="card-label">Ahorro semana</div><div class="card-value yellow numero-grande">${fmt(totalG*0.3)}</div></div>
+    </div>
+    <div class="table-wrap"><div class="table-header"><span class="table-header-title">Desglose diario</span></div>
+    <div style="overflow-x:auto"><table><thead><tr><th>Día</th><th>Ventas</th><th>Ganancia</th><th>Transacciones</th></tr></thead>
+    <tbody>${dias.map(d=>`<tr><td>${d.fecha}</td><td class="blue">${fmt(d.tv)}</td><td class="${d.tg>=0?'green':'red'}">${fmt(d.tg)}</td><td>${d.count}</td></tr>`).join('')}</tbody></table></div></div>`;
+}
+
+function renderReporteMensual(){
+  const mes=new Date().toISOString().slice(0,7);
+  const ventasMes=state.ventas.filter(v=>v.fecha.startsWith(mes));
+  const comprasMes=state.compras.filter(c=>c.fecha.startsWith(mes));
+  const totalV=ventasMes.reduce((s,v)=>s+v.totalVendido,0),totalG=ventasMes.reduce((s,v)=>s+v.ganancia,0),totalC=comprasMes.reduce((s,c)=>s+c.costoTotal,0);
+  const prodM={};ventasMes.forEach(v=>{prodM[v.productoNombre]=(prodM[v.productoNombre]||0)+v.cantidad;});
+  const topM=Object.entries(prodM).sort((a,b)=>b[1]-a[1]);
+  $('reporte-mensual-content').innerHTML=`
+    <div class="cards-grid" style="margin-bottom:16px">
+      <div class="metric-card blue"><div class="card-label">Ventas del mes</div><div class="card-value blue numero-grande">${fmt(totalV)}</div></div>
+      <div class="metric-card green"><div class="card-label">Ganancia del mes</div><div class="card-value green numero-grande">${fmt(totalG)}</div></div>
+      <div class="metric-card red"><div class="card-label">Compras del mes</div><div class="card-value red numero-grande">${fmt(totalC)}</div></div>
+      <div class="metric-card yellow"><div class="card-label">Reinversión</div><div class="card-value yellow numero-grande">${fmt(totalG*0.5)}</div></div>
+    </div>
+    <div class="form-section" style="margin:0"><div class="section-title" style="margin-bottom:10px">Top productos del mes</div>
+    ${topM.slice(0,5).map((e,i)=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span>${['🥇','🥈','🥉','4.','5.'][i]} ${e[0]}</span><span class="badge badge-green">${e[1]} u.</span></div>`).join('')||'<div style="color:var(--text3)">Sin datos</div>'}</div>`;
+}
+
+/* ============================================================
+   ESTADÍSTICAS / CHARTS
+   ============================================================ */
+const chartDefaults={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#55556a',font:{size:10}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#55556a',font:{size:10}}}}};
+
+function destroyChart(id){if(state.chartInstances[id]){state.chartInstances[id].destroy();delete state.chartInstances[id];}}
+
+function renderEstadisticas(){
+  const labels7=[],data7=[];
+  for(let i=6;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);const key=d.toISOString().slice(0,10);labels7.push(d.toLocaleDateString('es',{weekday:'short',day:'2-digit'}));data7.push(state.ventas.filter(v=>v.fecha===key).reduce((s,v)=>s+v.totalVendido,0));}
+  makeChart('chart-ventas-dia','bar',labels7,data7,'var(--blue)');
+
+  const labelsW=[],dataW=[];
+  for(let w=3;w>=0;w--){const start=new Date();start.setDate(start.getDate()-w*7-6);const end=new Date();end.setDate(end.getDate()-w*7);const sk=start.toISOString().slice(0,10),ek=end.toISOString().slice(0,10);labelsW.push('Sem '+(4-w));dataW.push(state.ventas.filter(v=>v.fecha>=sk&&v.fecha<=ek).reduce((s,v)=>s+v.ganancia,0));}
+  makeChart('chart-ganancias-semana','bar',labelsW,dataW,'var(--green)');
+
+  const prodV={};state.ventas.forEach(v=>{prodV[v.productoNombre]=(prodV[v.productoNombre]||0)+v.cantidad;});
+  const pvE=Object.entries(prodV).sort((a,b)=>b[1]-a[1]);
+  makeChart('chart-productos-vendidos','doughnut',pvE.map(e=>e[0]),pvE.map(e=>e[1]),['#00e676','#ffd740','#40c4ff','#ff5252','#b39ddb']);
+
+  const meses={};state.ventas.forEach(v=>{const m=v.fecha.slice(0,7);meses[m]=(meses[m]||0)+v.ganancia;});
+  const mEntries=Object.entries(meses).sort((a,b)=>a[0].localeCompare(b[0]));
+  let acc=state.capitalInicial;
+  const capsData=mEntries.map(e=>{acc+=e[1];return acc;});
+  makeChart('chart-capital','line',mEntries.map(e=>e[0]),capsData,'var(--green)',true);
+
+  const prodRent={qty:{},gan:{}};
+  state.ventas.forEach(v=>{prodRent.qty[v.productoNombre]=(prodRent.qty[v.productoNombre]||0)+v.totalVendido;prodRent.gan[v.productoNombre]=(prodRent.gan[v.productoNombre]||0)+v.ganancia;});
+  const rentE=Object.entries(prodRent.gan).map(([n,g])=>([n,prodRent.qty[n]>0?Math.round(g/prodRent.qty[n]*100):0])).sort((a,b)=>b[1]-a[1]);
+  makeChart('chart-rentabilidad','bar',rentE.map(e=>e[0]),rentE.map(e=>e[1]),'var(--yellow)');
+
+  const mes=new Date().toISOString().slice(0,7);const compM={};
+  state.ventas.filter(v=>v.fecha.startsWith(mes)).forEach(v=>{compM[v.productoNombre]=(compM[v.productoNombre]||0)+v.totalVendido;});
+  const compE=Object.entries(compM);
+  makeChart('chart-comparacion','bar',compE.map(e=>e[0]),compE.map(e=>e[1]),'var(--blue)');
+}
+
+function makeChart(id,type,labels,data,color,fill=false){
+  destroyChart(id);const ctx=$(id);if(!ctx)return;
+  const isArr=Array.isArray(color);
+  const ds={data,borderRadius:4,borderWidth:2,backgroundColor:isArr?color.map(c=>c+'aa'):(type==='line'?'rgba(0,230,118,0.08)':color+'99'),borderColor:isArr?color:color,fill,tension:0.4,pointBackgroundColor:color,pointRadius:type==='line'?3:0};
+  state.chartInstances[id]=new Chart(ctx,{type,data:{labels,datasets:[ds]},options:{...chartDefaults,plugins:{...chartDefaults.plugins,legend:{display:type==='doughnut',labels:{color:'#9999aa',font:{size:11}}}},scales:type==='doughnut'?{}:chartDefaults.scales}});
+}
+
+function renderChartDistribucion(f){
+  destroyChart('chart-distribucion');const ctx=$('chart-distribucion');if(!ctx)return;
+  state.chartInstances['chart-distribucion']=new Chart(ctx,{type:'doughnut',data:{labels:['Reinversión 50%','Ahorro 30%','Personal 20%'],datasets:[{data:[f.reinversion,f.ahorro,f.personal],backgroundColor:['#00e67699','#ffd74099','#40c4ff99'],borderColor:['#00e676','#ffd740','#40c4ff'],borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{color:'#9999aa',font:{size:10}}}}}});
+}
+
+/* ============================================================
+   CONFIGURACIÓN
+   ============================================================ */
+function renderConfig(){
+  $('cfg-user').value  = state.config.usuario || '';
+  $('cfg-negocio').value = state.config.negocio || '';
+  $('cfg-moneda').value  = state.config.moneda  || '$';
+  if(currentUser) $('cfg-email-display').textContent = currentUser.email;
+}
+
+async function guardarCredenciales(){
+  const nombre = $('cfg-user').value.trim();
+  const newPass = $('cfg-pass').value;
+  if(!nombre){alert('Ingresa un nombre visible.');return;}
+  state.config.usuario = nombre;
+  if(newPass){
+    if(newPass.length<6){alert('La contraseña debe tener al menos 6 caracteres.');return;}
+    try{
+      await currentUser.updatePassword(newPass);
+      showToast('🔐 Contraseña actualizada');
+    }catch(err){
+      if(err.code==='auth/requires-recent-login'){
+        alert('Por seguridad, cierra sesión e inicia de nuevo antes de cambiar la contraseña.');
+      }else{
+        alert('Error al cambiar contraseña: '+err.message);
+      }
+      return;
+    }
+  }
+  save();
+  $('sidebar-username').textContent = nombre;
+  $('sidebar-avatar').textContent   = nombre[0].toUpperCase();
+  $('cfg-pass').value='';
+  showToast('✅ Perfil actualizado');
+}
+
+function guardarConfigNegocio(){
+  state.config.negocio = $('cfg-negocio').value || 'DulceControl';
+  state.config.moneda  = $('cfg-moneda').value;
+  save();showToast('✅ Configuración guardada');
+}
+
+function resetDatos(){
+  if(!confirm('¿Borrar todas las ventas, compras y retiros? Los productos se mantienen.'))return;
+  state.ventas=[];state.compras=[];state.retiros=[];state.capitalInicial=0;
+  save();renderPage(state.currentPage);showToast('🗑 Datos operativos borrados');
+}
+
+async function resetTotal(){
+  if(!confirm('⚠️ BORRAR TODO. ¿Estás seguro?'))return;
+  if(!confirm('Última confirmación. Se perderá TODO.'))return;
+  try{
+    await db.collection('usuarios').doc(currentUser.uid).delete();
+  }catch(err){console.error('Error al borrar datos:',err);}
+  try{
+    await auth.signOut();
+  }catch(err){console.error('Error al cerrar sesión:',err);}
+}
+
+/* ============================================================
+   EXPORT / IMPORT
+   ============================================================ */
+function exportarJSON(){
+  const data={productos:state.productos,ventas:state.ventas,compras:state.compras,retiros:state.retiros,capitalInicial:state.capitalInicial};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`dulcecontrol-backup-${today()}.json`;a.click();
+  showToast('📥 Backup JSON descargado');
+}
+
+function exportarCSV(){
+  const header=['Fecha','Producto','Cantidad','Precio Unit.','Costo Unit.','Total Vendido','Ganancia'];
+  const rows=state.ventas.map(v=>[v.fecha,v.productoNombre,v.cantidad,v.precioUnit,v.costoUnit,v.totalVendido,v.ganancia]);
+  const csv=[header,...rows].map(r=>r.join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`dulcecontrol-ventas-${today()}.csv`;a.click();
+  showToast('📊 CSV de ventas descargado');
+}
+
+function importarJSON(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      if(data.ventas)    state.ventas=data.ventas;
+      if(data.compras)   state.compras=data.compras;
+      if(data.retiros)   state.retiros=data.retiros;
+      if(data.productos) state.productos=data.productos;
+      if(data.capitalInicial!==undefined)state.capitalInicial=data.capitalInicial;
+      save();populateProductSelects();renderPage(state.currentPage);
+      showToast('✅ Datos importados y sincronizados con Firebase');
+    }catch(err){alert('Error al importar: archivo inválido');}
+  };
+  reader.readAsText(file);
+}
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+function showToast(msg){
+  const t=document.createElement('div');
+  t.style.cssText=`position:fixed;bottom:20px;right:20px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 18px;font-size:.85rem;font-weight:600;color:var(--text);z-index:9999;animation:slideIn .3s ease;max-width:280px;box-shadow:0 4px 20px rgba(0,0,0,.4)`;
+  t.textContent=msg;document.body.appendChild(t);
+  setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),300);},2500);
+}
+
+/* ============================================================
+   KEYBOARD SHORTCUTS (login)
+   ============================================================ */
+document.getElementById('login-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+document.getElementById('login-email').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('login-pass').focus();});
+</script>
+</body>
+</html>
